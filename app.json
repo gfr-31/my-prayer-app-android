@@ -9,6 +9,7 @@
     "ios": {
       "supportsTablet": true
     },
+
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -16,10 +17,20 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.gifran.MyPrayerAppAndroid"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": ["expo-font"],
+    "extra": {
+      "eas": {
+        "projectId": "6000841c-3a20-41d4-86b9-7302c83ceed3"
+      },
+      "cli": {
+        "appVersionSource": "remote"
+      }
     }
   }
 }
