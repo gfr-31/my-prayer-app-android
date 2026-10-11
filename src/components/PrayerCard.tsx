@@ -10,7 +10,8 @@ interface PrayerCardProps {
   arabicFontSize: number;
 }
 
-export const PrayerCard: React.FC<PrayerCardProps> = ({
+// 1. Definisikan komponen secara normal dulu
+const PrayerCardComponent: React.FC<PrayerCardProps> = ({
   item,
   index,
   arabicFontSize,
@@ -112,3 +113,6 @@ export const PrayerCard: React.FC<PrayerCardProps> = ({
     </View>
   );
 };
+
+// 2. Ekspor dengan React.memo secara terpisah agar aman
+export const PrayerCard = React.memo(PrayerCardComponent);

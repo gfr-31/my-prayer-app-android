@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export interface Prayer {
   id: string;
+  order_index: number;
   title: string;
   category: string;
   arabic: string;

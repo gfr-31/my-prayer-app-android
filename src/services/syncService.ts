@@ -39,6 +39,7 @@ export const syncService = {
       const { data: allLatesPrayers, error: fetchError } = await supabase
         .from("prayers")
         .select("*")
+        .order("order_index", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: true });
 
       if (fetchError || !allLatesPrayers) {
