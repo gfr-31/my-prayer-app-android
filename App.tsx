@@ -1,4 +1,5 @@
 import "./global.css";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -59,15 +60,50 @@ export default function App() {
   const currentScrollOffset = useRef<number>(0);
 
   const loadAndSyncData = async () => {
-    setLoading(true);
-    const result = await syncService.syncPrayers();
-    setPrayers(result.prayers);
-    setSyncStatus(result.updated ? "Data diperbaharui" : "Cache aktif");
-    setLoading(false);
+    try {
+      setLoading(true);
+
+      // Panggil fungsi sinkronisasi
+      const result = await syncService.syncPrayers();
+
+      // Pastikan result dan result.prayers benar-benar ada dan berupa Array
+      if (result && Array.isArray(result.prayers)) {
+        setPrayers(result.prayers);
+        setSyncStatus(result.updated ? "Data diperbaharui" : "Cache aktif");
+      } else {
+        // Fallback jika format data dari service tidak sesuai
+        setPrayers([]);
+        setSyncStatus("Gagal memuat format data");
+      }
+    } catch (error) {
+      console.error("Crash prevented in loadAndSyncData:", error);
+      // Berikan nilai aman agar aplikasi tidak force close
+      setPrayers([]);
+      setSyncStatus("Mode offline / Gagal sinkronisasi");
+    } finally {
+      // Pastikan loading selalu dimatikan dalam kondisi apapun
+      setLoading(false);
+    }
   };
 
+  // Mencegah splash screen tertutup otomatis sebelum data siap
+  SplashScreen.preventAutoHideAsync().catch(() => {});
   useEffect(() => {
-    loadAndSyncData();
+    const initApp = async () => {
+      try {
+        // 1. Panggil fungsi pemuatan & sinkronisasi data
+        await loadAndSyncData();
+      } catch (error) {
+        console.error("Gagal memuat data saat inisialisasi:", error);
+        // PENTING: Berikan data default/kosong agar state tidak undefined
+        // setPrayers([]);
+      } finally {
+        // 2. Pastikan Splash Screen SELALU ditutup, baik berhasil maupun error
+        await SplashScreen.hideAsync().catch(() => {});
+      }
+    };
+
+    initApp();
   }, []);
 
   const handleScrollStep = (direction: "up" | "down") => {

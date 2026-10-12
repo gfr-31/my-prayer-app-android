@@ -2,14 +2,13 @@
   "expo": {
     "name": "MyPrayerApp-Android",
     "slug": "MyPrayerApp-Android",
-    "version": "1.0.0",
+    "version": "1.2.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
     },
-
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -18,12 +17,13 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.gifran.MyPrayerAppAndroid"
+      "package": "com.gifran.MyPrayerAppAndroid",
+      "versionCode": 2
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-font"],
+    "plugins": ["expo-font", "expo-splash-screen"],
     "extra": {
       "eas": {
         "projectId": "6000841c-3a20-41d4-86b9-7302c83ceed3"
