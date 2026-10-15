@@ -1,5 +1,4 @@
 import "./global.css";
-import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -21,7 +20,6 @@ import {
   ArrowUpDown,
   Check,
 } from "lucide-react-native";
-
 // Import Google Fonts
 import {
   useFonts,
@@ -34,6 +32,7 @@ import {
   PlusJakartaSans_700Bold,
 } from "@expo-google-fonts/plus-jakarta-sans";
 import { ReorderControlBar } from "./src/components/ReorderControlBar";
+import { CustomSplashScreen } from "./src/components/SplashScreen";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -45,19 +44,18 @@ export default function App() {
     PlusJakartaSans_600SemiBold,
     PlusJakartaSans_700Bold,
   });
-
   const [prayers, setPrayers] = useState<Prayer[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [syncStatus, setSyncStatus] = useState<string>(
     "Memulai sinkronisasi....",
   );
-  const [arabicFontSize, setArabicFontSize] = useState<number>(24);
-
+  const [arabicFontSize, setArabicFontSize] = useState<number>(22);
   // State baru untuk mengontrol mode atur posisi
   const [isReorderMode, setIsReorderMode] = useState<boolean>(false);
-
+  const [isReady, setIsReady] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const currentScrollOffset = useRef<number>(0);
+  const [showSplash, setShowSplash] = useState(true);
 
   const loadAndSyncData = async () => {
     try {
@@ -87,24 +85,25 @@ export default function App() {
   };
 
   // Mencegah splash screen tertutup otomatis sebelum data siap
-  SplashScreen.preventAutoHideAsync().catch(() => {});
   useEffect(() => {
     const initApp = async () => {
       try {
-        // 1. Panggil fungsi pemuatan & sinkronisasi data
+        // Aktifkan kembali pemuatan data asli di sini agar otomatis memuat saat startup
         await loadAndSyncData();
       } catch (error) {
         console.error("Gagal memuat data saat inisialisasi:", error);
-        // PENTING: Berikan data default/kosong agar state tidak undefined
-        // setPrayers([]);
       } finally {
         // 2. Pastikan Splash Screen SELALU ditutup, baik berhasil maupun error
-        await SplashScreen.hideAsync().catch(() => {});
+        setIsReady(true);
       }
     };
 
     initApp();
   }, []);
+
+  if (!isReady) {
+    return null; // Tampilan kosong sementara splash screen masih aktif di atasnya
+  }
 
   const handleScrollStep = (direction: "up" | "down") => {
     const scrollAmount = SCREEN_HEIGHT * 0.7;
@@ -149,6 +148,7 @@ export default function App() {
     setIsReorderMode(false); // Keluar dari mode atur
   };
 
+  // Jika font belum dimuat, tampilkan loading font
   if (!fontsLoaded) {
     return (
       <View className="flex-1 bg-warmCream justify-center items-center">
@@ -157,6 +157,12 @@ export default function App() {
     );
   }
 
+  // Jika Custom Splash Screen masih aktif, tampilkan HANYA splash screen saja secara penuh
+  if (showSplash) {
+    return <CustomSplashScreen onFinish={() => setShowSplash(false)} />;
+  }
+
+  // Setelah splash screen selesai (showSplash = false), baru render tampilan utama aplikasi
   return (
     <View className="flex-1 bg-warmCream">
       <StatusBar style="light" />

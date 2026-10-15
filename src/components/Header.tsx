@@ -1,7 +1,6 @@
 import React from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Image, Text, TouchableOpacity, View } from "react-native";
 import { RefreshCw } from "lucide-react-native";
-import { Moon } from "lucide-react-native";
 
 interface HeaderProps {
   onRefresh: () => void;
@@ -11,11 +10,15 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ onRefresh, syncStatus }) => {
   return (
     <View className="bg-warmCream px-4 pt-10 pb-4 shadow-md flex-row justify-between items-center">
-      <View className="flex-row items-center space-x-2">
-        <View className="bg-emerald-800 p-2 rounded-lg mr-3">
-          <Moon size={22} color="#FAFAF7" />
-        </View>
-        <View>
+      <View className="flex-row items-center space-x-3">
+        {/* Mengganti ikon Moon dengan Logo My Prayer */}
+        <Image
+          source={require("../../assets/icon.png")}
+          className="w-10 h-10"
+          resizeMode="contain"
+        />
+
+        <View className="ml-2">
           <Text className="text-xl font-bold text-emeraldPrimary tracking-wide">
             My Prayer Mobile
           </Text>
