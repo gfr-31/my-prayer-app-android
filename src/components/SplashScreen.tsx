@@ -47,12 +47,12 @@ export const CustomSplashScreen: React.FC<CustomSplashScreenProps> = ({
       <View className="items-center">
         {/* Logo transparan kamu */}
         <Image
-          source={require("../../assets/splash-logo.png")}
-          className="w-48 h-46 mb-4"
+          source={require("../../assets/icon.png")}
+          className="w-48 h-48 mb-4"
           resizeMode="contain"
         />
-        {/* Judul Aplikasi */}
-        <Text className="text-warmCream text-2xl font-bold tracking-wider">
+        {/* Judul Aplikasi (Diubah ke warna hijau agar kontras dengan warmCream) */}
+        <Text className="text-[#0F5132] text-2xl font-bold tracking-wider">
           My Prayer
         </Text>
       </View>

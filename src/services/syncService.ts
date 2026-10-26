@@ -5,57 +5,39 @@ export const syncService = {
   async syncPrayers(): Promise<{ prayers: Prayer[]; updated: boolean }> {
     try {
       const localPrayers = await storageService.getPrayers();
-      const lastSync = await storageService.getLastSync();
+      const lastSyncTime = await storageService.getLastSync();
 
-      // Cek apakah ada pembaharuan di server (updated_at > lastsync)
-      let query = supabase
-        .from("prayers")
-        .select("*")
-        .order("updated_at", { ascending: false });
-
-      if (lastSync) {
-        query = query.gt("updated_at", lastSync);
-      }
-
-      const { data: serverUpdates, error } = await query;
-
-      if (error) {
-        console.warn(
-          "Gagal terhubung ke server, menggunakan data lokal",
-          error.message,
-        );
-        return { prayers: localPrayers, updated: false };
-      }
-
-      // Jika tidak ada perubahan dari sisi server dan data lokal sudah ada, gunakan cache lokal
-      if (
-        (!serverUpdates || serverUpdates.length === 0) &&
-        localPrayers.length > 0
-      ) {
-        return { prayers: localPrayers, updated: false };
-      }
-
-      // Jika ini pertama kali atau ada data baru/update dari server, ambil seluruh data terbaru
-      const { data: allLatesPrayers, error: fetchError } = await supabase
+      // LANGSUNG AMBIL SEMUA DATA TERBARU DARI SUPABASE (Lewati pengecekan lastSync sementara)
+      const { data: allLatestPrayers, error: fetchError } = await supabase
         .from("prayers")
         .select("*")
         .order("order_index", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: true });
 
-      if (fetchError || !allLatesPrayers) {
+      if (fetchError || !allLatestPrayers || allLatestPrayers.length === 0) {
+        console.warn(
+          "Gagal ambil dari server, pakai lokal:",
+          fetchError?.message,
+        );
         return { prayers: localPrayers, updated: false };
       }
 
-      // Perbaharui cache lokal dana catat timestamp terbaru
-      const newTimestamp = allLatesPrayers?.reduce(
+      // Cari timestamp terbaru dari data Supabase
+      const latestServerTimestamp = allLatestPrayers.reduce(
         (max, p) => (p.updated_at > max ? p.updated_at : max),
-        allLatesPrayers[0]?.updated_at || new Date().toISOString(),
+        allLatestPrayers[0]?.updated_at || new Date().toISOString(),
       );
 
-      await storageService.savePrayers(allLatesPrayers);
-      await storageService.saveLastSync(newTimestamp);
+      // Bandingkan apakah server lebih baru dari HP
+      // Jika belum pernah sync (lastSyncTime null) atau server lebih baru -> berarti ada update!
+      const hasNewUpdate =
+        !lastSyncTime || latestServerTimestamp > lastSyncTime;
 
-      return { prayers: allLatesPrayers, updated: true };
+      // Simpan data & timestamp baru ke storage lokal
+      await storageService.savePrayers(allLatestPrayers);
+      await storageService.saveLastSync(latestServerTimestamp);
+
+      return { prayers: allLatestPrayers, updated: hasNewUpdate };
     } catch (e) {
       console.error("Terjadi kesalahan saat sinkronisasi ", e);
       const fallbackData = await storageService.getPrayers();

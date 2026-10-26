@@ -27,18 +27,22 @@ export const storageService = {
     }
   },
 
-  //Ambil daftar doa dari cache lokal
+  // Ambil daftar doa dari cache lokal (Kembalikan array kosong jika belum ada data)
   async getPrayers(): Promise<Prayer[]> {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.PRAYERS);
-      return data ? JSON.parse(data) : [];
+      if (data) {
+        const parsed = JSON.parse(data);
+        return Array.isArray(parsed) ? parsed : [];
+      }
+      return []; // Jika kosong, kembalikan array kosong supaya aplikasi tahu data belum di-download
     } catch (e) {
       console.error("Gagal mengambil doa ke lokal : ", e);
       return [];
     }
   },
 
-  //Simpan timestamp sinkronisasi terakhir
+  // Simpan timestamp sinkronisasi terakhir
   async saveLastSync(timestamp: string): Promise<void> {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.LAST_SYNC, timestamp);
@@ -47,7 +51,7 @@ export const storageService = {
     }
   },
 
-  //Ambil timestamp sinkronisai terakhir
+  // Ambil timestamp sinkronisai terakhir
   async getLastSync(): Promise<string | null> {
     try {
       return await AsyncStorage.getItem(STORAGE_KEYS.LAST_SYNC);

@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   FlatList,
   Text,
@@ -14,12 +15,7 @@ import { syncService } from "./src/services/syncService";
 import { Header } from "./src/components/Header";
 import { FontResizer } from "./src/components/FontResizer";
 import { PrayerCard } from "./src/components/PrayerCard";
-import {
-  ChevronDown,
-  ChevronUp,
-  ArrowUpDown,
-  Check,
-} from "lucide-react-native";
+import { ChevronDown, ChevronUp } from "lucide-react-native";
 // Import Google Fonts
 import {
   useFonts,
@@ -33,6 +29,8 @@ import {
 } from "@expo-google-fonts/plus-jakarta-sans";
 import { ReorderControlBar } from "./src/components/ReorderControlBar";
 import { CustomSplashScreen } from "./src/components/SplashScreen";
+import DebugPanel from "./src/components/DebugScreen";
+import { supabase } from "./src/lib/supabase";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -50,59 +48,129 @@ export default function App() {
     "Memulai sinkronisasi....",
   );
   const [arabicFontSize, setArabicFontSize] = useState<number>(22);
-  // State baru untuk mengontrol mode atur posisi
   const [isReorderMode, setIsReorderMode] = useState<boolean>(false);
   const [isReady, setIsReady] = useState(false);
-  const flatListRef = useRef<FlatList>(null);
-  const currentScrollOffset = useRef<number>(0);
   const [showSplash, setShowSplash] = useState(true);
 
-  const loadAndSyncData = async () => {
+  // State untuk titik merah (Hanya aktif jika Realtime mendeteksi perubahan)
+  const [hasUpdate, setHasUpdate] = useState<boolean>(false);
+
+  const currentScrollOffset = useRef<number>(0);
+  const flatListRef = useRef<FlatList>(null);
+
+  // 1. Fungsi Inisialisasi Pertama Kali / Download Wajib dari Server
+  const fetchInitialData = async () => {
     try {
       setLoading(true);
-
-      // Panggil fungsi sinkronisasi
       const result = await syncService.syncPrayers();
 
-      // Pastikan result dan result.prayers benar-benar ada dan berupa Array
-      if (result && Array.isArray(result.prayers)) {
+      if (
+        result &&
+        Array.isArray(result.prayers) &&
+        result.prayers.length > 0
+      ) {
         setPrayers(result.prayers);
-        setSyncStatus(result.updated ? "Data diperbaharui" : "Cache aktif");
+        setSyncStatus("Data sinkron (Online)");
       } else {
-        // Fallback jika format data dari service tidak sesuai
-        setPrayers([]);
-        setSyncStatus("Gagal memuat format data");
+        const localCache = await storageService.getPrayers();
+        setPrayers(localCache);
+        setSyncStatus("Menggunakan data lokal");
       }
     } catch (error) {
-      console.error("Crash prevented in loadAndSyncData:", error);
-      // Berikan nilai aman agar aplikasi tidak force close
-      setPrayers([]);
-      setSyncStatus("Mode offline / Gagal sinkronisasi");
+      // console.log("Gagal koneksi awal:", error);
+      const localCache = await storageService.getPrayers();
+
+      // Jika belum ada data sama sekali di HP dan internet mati, wajib munculkan pop-up
+      if (!localCache || localCache.length <= 1) {
+        Alert.alert(
+          "Koneksi Terputus",
+          "Aplikasi memerlukan koneksi internet untuk mengunduh data pada awal instalasi. Periksa koneksi Anda.",
+          [{ text: "OK" }],
+        );
+        setSyncStatus("Offline (Belum ada data)");
+      } else {
+        setPrayers(localCache);
+        setSyncStatus("Mode Offline (Data Tersimpan)");
+      }
     } finally {
-      // Pastikan loading selalu dimatikan dalam kondisi apapun
       setLoading(false);
     }
   };
 
-  // Mencegah splash screen tertutup otomatis sebelum data siap
+  // 2. Fungsi saat User KLIK TOMBOL SYNC MANUAL (Mematikan titik merah)
+  const handleManualSync = async () => {
+    try {
+      setLoading(true);
+      const result = await syncService.syncPrayers();
+
+      if (
+        result &&
+        Array.isArray(result.prayers) &&
+        result.prayers.length > 0
+      ) {
+        setPrayers(result.prayers);
+        setSyncStatus("Data berhasil diperbarui");
+        setHasUpdate(false);
+      } else {
+        Alert.alert(
+          "Gagal Sinkronisasi",
+          "Tidak dapat memperbarui data dari server.",
+        );
+      }
+    } catch (error) {
+      console.error("Gagal sinkronisasi manual:", error);
+      Alert.alert(
+        "Kesalahan",
+        "Gagal menyinkronkan data. Periksa koneksi internet Anda.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 3. useEffect Inisialisasi & Pasang Supabase Realtime Listener untuk Titik Merah
   useEffect(() => {
     const initApp = async () => {
       try {
-        // Aktifkan kembali pemuatan data asli di sini agar otomatis memuat saat startup
-        await loadAndSyncData();
+        await fetchInitialData();
       } catch (error) {
         console.error("Gagal memuat data saat inisialisasi:", error);
       } finally {
-        // 2. Pastikan Splash Screen SELALU ditutup, baik berhasil maupun error
         setIsReady(true);
       }
     };
 
     initApp();
+
+    const prayerChannel = supabase
+      .channel("public:prayers")
+      .on(
+        "postgres_changes",
+        {
+          event: "*", // Mendengar INSERT, UPDATE, atau DELETE di Supabase
+          schema: "public",
+          table: "prayers",
+        },
+        (payload) => {
+          // console.log("Perubahan terdeteksi secara real-time!", payload);
+
+          // NYALAKAN TITIK MERAH SUPAYA USER TAHU ADA UPDATE
+          setHasUpdate(true);
+          setSyncStatus("Ada pembaruan baru!");
+        },
+      )
+      .subscribe((status) => {
+        // console.log("Realtime status:", status);
+      });
+
+    // Membersihkan channel saat aplikasi ditutup
+    return () => {
+      supabase.removeChannel(prayerChannel);
+    };
   }, []);
 
   if (!isReady) {
-    return null; // Tampilan kosong sementara splash screen masih aktif di atasnya
+    return null;
   }
 
   const handleScrollStep = (direction: "up" | "down") => {
@@ -120,15 +188,12 @@ export default function App() {
     });
   };
 
-  // Fungsi untuk memindahkan posisi doa ke atas atau ke bawah
   const movePrayerPosition = (index: number, direction: "up" | "down") => {
     const newPrayers = [...prayers];
     const targetIndex = direction === "up" ? index - 1 : index + 1;
 
-    // Validasi batas atas dan bawah
     if (targetIndex < 0 || targetIndex >= newPrayers.length) return;
 
-    // Tukar posisi elemen dalam array
     const temp = newPrayers[index];
     newPrayers[index] = newPrayers[targetIndex];
     newPrayers[targetIndex] = temp;
@@ -137,7 +202,6 @@ export default function App() {
   };
 
   const handleSaveReorder = async () => {
-    // Berikan order_index baru sesuai urutan array saat ini
     const updatedWithIndex = prayers.map((item, index) => ({
       ...item,
       order_index: index,
@@ -145,10 +209,9 @@ export default function App() {
 
     setPrayers(updatedWithIndex);
     await storageService.savePrayers(updatedWithIndex);
-    setIsReorderMode(false); // Keluar dari mode atur
+    setIsReorderMode(false);
   };
 
-  // Jika font belum dimuat, tampilkan loading font
   if (!fontsLoaded) {
     return (
       <View className="flex-1 bg-warmCream justify-center items-center">
@@ -157,17 +220,20 @@ export default function App() {
     );
   }
 
-  // Jika Custom Splash Screen masih aktif, tampilkan HANYA splash screen saja secara penuh
   if (showSplash) {
     return <CustomSplashScreen onFinish={() => setShowSplash(false)} />;
   }
 
-  // Setelah splash screen selesai (showSplash = false), baru render tampilan utama aplikasi
   return (
     <View className="flex-1 bg-warmCream">
       <StatusBar style="light" />
 
-      <Header onRefresh={loadAndSyncData} syncStatus={syncStatus} />
+      {/* Header menggunakan fungsi handleManualSync saat tombol refresh diklik */}
+      <Header
+        onRefresh={handleManualSync}
+        syncStatus={syncStatus}
+        hasUpdate={hasUpdate}
+      />
 
       <ReorderControlBar
         isReorderMode={isReorderMode}
@@ -193,7 +259,9 @@ export default function App() {
         <FlatList
           ref={flatListRef}
           data={prayers}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item, index) =>
+            item.id ? item.id.toString() : index.toString()
+          }
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 80 }}
           initialNumToRender={5}
@@ -214,7 +282,6 @@ export default function App() {
 
               {isReorderMode && (
                 <View className="absolute right-4 top-4 flex-row space-x-1 bg-white/90 p-1 rounded-lg shadow border border-gray-200">
-                  {/* Tombol Panah Atas */}
                   <TouchableOpacity
                     onPress={() => movePrayerPosition(index, "up")}
                     disabled={index === 0}
@@ -223,7 +290,6 @@ export default function App() {
                     <ChevronUp size={18} color="#0F5132" />
                   </TouchableOpacity>
 
-                  {/* Tombol Panah Bawah */}
                   <TouchableOpacity
                     onPress={() => movePrayerPosition(index, "down")}
                     disabled={index === prayers.length - 1}
@@ -238,7 +304,6 @@ export default function App() {
         />
       )}
 
-      {/* Floating Scroll Navigation */}
       {!isReorderMode && (
         <View className="absolute bottom-20 right-6 flex-col space-y-2">
           <TouchableOpacity
@@ -255,6 +320,8 @@ export default function App() {
           </TouchableOpacity>
         </View>
       )}
+
+      <DebugPanel />
     </View>
   );
 }
