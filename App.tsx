@@ -321,7 +321,7 @@ export default function App() {
         </View>
       )}
 
-      <DebugPanel />
+      {/* <DebugPanel /> */}
     </View>
   );
 }
